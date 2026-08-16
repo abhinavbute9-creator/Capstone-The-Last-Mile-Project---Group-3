@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Pune Transport & Metro Comparison Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+html, body { margin:0; padding:0; height:100%; font-family:Arial,sans-serif; }
+#map { width:100%; height:100vh; }
+
+.legend {
+  position:absolute; bottom:20px; left:20px; z-index:1000;
+  background:#1c2029; color:#fff; padding:10px 14px;
+  border-radius:8px; font-size:12px; line-height:1.7;
+}
+.legend b { display:block; margin-bottom:4px; }
+.sw { display:inline-block; width:12px; height:12px; margin-right:6px; vertical-align:middle; }
+
+.metro-popup { min-width:270px; }
+.metro-popup h3 { margin:0 0 4px 0; font-size:16px; }
+.station-type { color:#666; font-size:12px; margin-bottom:8px; }
+.popup-row { margin:5px 0; font-size:13px; }
+.destination-select {
+  width:100%; box-sizing:border-box; padding:7px; margin-top:5px;
+  border-radius:5px; border:1px solid #ccc;
+}
+.plan-button {
+  width:100%; margin-top:8px; padding:8px; border:none; border-radius:5px;
+  background:#1976d2; color:white; cursor:pointer; font-weight:bold;
+}
+.plan-button:hover { background:#125ca8; }
+.comparison { margin-top:10px; padding:10px; border-radius:7px; background:#f4f6f8; }
+.comparison-title { font-weight:bold; margin-bottom:6px; }
+.metro-time { color:#1976d2; }
+.road-time { color:#d85a30; }
+.saving { margin-top:8px; padding:7px; border-radius:5px; background:#e8f5e9;
+          color:#20752c; font-weight:bold; text-align:center; }
+.warning { margin-top:8px; padding:7px; background:#fff3cd;
+           border-radius:5px; font-size:11px; color:#856404; }
+.route-info { margin-top:8px; font-size:11px; color:#666; }
+</style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<div class="legend">
+  <b>Node type</b>
+  <span class="sw" style="background:#888;border-radius:50%;"></span>Metro station<br/>
+  <span class="sw" style="background:#888;border-radius:2px;"></span>Railway station<br/>
+  <span class="sw" style="background:#888;border-radius:2px;transform:rotate(45deg);display:inline-block;"></span>Bus terminal<br/>
+  <span class="sw" style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid #888;background:none;"></span>BRT stop<br/>
+  <b style="margin-top:8px;">Risk</b>
+  <span class="sw" style="background:#1D9E75;border-radius:50%;"></span>Low<br/>
+  <span class="sw" style="background:#EF9F27;border-radius:50%;"></span>Moderate<br/>
+  <span class="sw" style="background:#D85A30;border-radius:50%;"></span>High
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+
+/* ============================================================
+   ORIGINAL PROJECT NODE DATA
+   ============================================================ */
+const nodes = [
+{"id":"NODE_0042","station_name":"Sangamwadi BRTS Stop","node_type":"BRT Stop","lat":18.535,"lng":73.873,"trips":93,"risk_score":60.0,"actual_switch_rate":52.7,"avg_congestion":0.9529784946,"avg_crowding":0.8347311828,"avg_wait_min":19.0562365591,"avg_alt_mode_availability":5.1723655914},
+{"id":"NODE_0053","station_name":"Chhatrapati Sambhaji Udyan","node_type":"Metro Station","lat":18.52014,"lng":73.84761,"trips":98,"risk_score":51.1,"actual_switch_rate":39.8,"avg_congestion":0.6995612245,"avg_crowding":0.6907755102,"avg_wait_min":15.1510204082,"avg_alt_mode_availability":9.2123469388},
+{"id":"NODE_0056","station_name":"Ramwadi","node_type":"Metro Station","lat":18.55714,"lng":73.90968,"trips":83,"risk_score":49.2,"actual_switch_rate":36.1,"avg_congestion":0.707373494,"avg_crowding":0.6944216867,"avg_wait_min":15.298313253,"avg_alt_mode_availability":8.7104819277},
+{"id":"NODE_0073","station_name":"Nashik Phata","node_type":"Metro Station","lat":18.6094,"lng":73.8201,"trips":81,"risk_score":47.2,"actual_switch_rate":39.5,"avg_congestion":0.5982222222,"avg_crowding":0.6435061728,"avg_wait_min":13.9164197531,"avg_alt_mode_availability":4.1533333333},
+{"id":"NODE_0008","station_name":"Shivaji Nagar","node_type":"Metro Station","lat":18.53269,"lng":73.84955,"trips":85,"risk_score":46.3,"actual_switch_rate":36.5,"avg_congestion":0.5061882353,"avg_crowding":0.5878823529,"avg_wait_min":12.6292941176,"avg_alt_mode_availability":2.0695294118},
+{"id":"NODE_0105","station_name":"Dapodi","node_type":"Metro Station","lat":18.58376,"lng":73.83383,"trips":78,"risk_score":46.3,"actual_switch_rate":30.8,"avg_congestion":0.6635,"avg_crowding":0.6898461538,"avg_wait_min":14.9265384615,"avg_alt_mode_availability":4.0930769231},
+{"id":"NODE_0064","station_name":"PMC Bhavan","node_type":"Metro Station","lat":18.52274,"lng":73.85353,"trips":95,"risk_score":46.0,"actual_switch_rate":32.6,"avg_congestion":0.6631052632,"avg_crowding":0.6574947368,"avg_wait_min":14.5962105263,"avg_alt_mode_availability":4.9553684211},
+{"id":"NODE_0046","station_name":"Pune Railway Station (Metro)","node_type":"Metro Station","lat":18.52969,"lng":73.87256,"trips":83,"risk_score":45.9,"actual_switch_rate":37.3,"avg_congestion":0.4874939759,"avg_crowding":0.570373494,"avg_wait_min":12.0593975904,"avg_alt_mode_availability":1.9209638554},
+{"id":"NODE_0001","station_name":"Swargate Bus Stand","node_type":"Bus Terminal","lat":18.5008,"lng":73.8567,"trips":77,"risk_score":42.4,"actual_switch_rate":33.8,"avg_congestion":0.6454805195,"avg_crowding":0.6387922078,"avg_wait_min":14.3142857143,"avg_alt_mode_availability":5.3866233766},
+{"id":"NODE_0116","station_name":"Shivajinagar Railway Station","node_type":"Railway Station","lat":18.5308,"lng":73.8477,"trips":73,"risk_score":36.2,"actual_switch_rate":34.2,"avg_congestion":0.4325342466,"avg_crowding":0.5465753425,"avg_wait_min":11.0938356164,"avg_alt_mode_availability":3.3680821918},
+{"id":"NODE_0045","station_name":"Wakad PMPML Depot","node_type":"Bus Terminal","lat":18.5993,"lng":73.7616,"trips":79,"risk_score":36.0,"actual_switch_rate":27.8,"avg_congestion":0.4195696203,"avg_crowding":0.5393037973,"avg_wait_min":11.425443038,"avg_alt_mode_availability":5.3986075949},
+{"id":"NODE_0019","station_name":"Pune Junction","node_type":"Railway Station","lat":18.5286,"lng":73.8746,"trips":96,"risk_score":35.2,"actual_switch_rate":22.9,"avg_congestion":0.4179166667,"avg_crowding":0.5473854167,"avg_wait_min":11.1291666667,"avg_alt_mode_availability":4.4691666667},
+{"id":"NODE_0080","station_name":"Bund Garden","node_type":"Metro Station","lat":18.54016,"lng":73.8832,"trips":87,"risk_score":32.8,"actual_switch_rate":25.3,"avg_congestion":0.4449770115,"avg_crowding":0.5312183908,"avg_wait_min":11.3564367816,"avg_alt_mode_availability":4.3186206897},
+{"id":"NODE_0007","station_name":"Mahatma Phule Mandai","node_type":"Metro Station","lat":18.51302,"lng":73.85689,"trips":76,"risk_score":31.1,"actual_switch_rate":22.4,"avg_congestion":0.3375657895,"avg_crowding":0.49675,"avg_wait_min":9.8102631579,"avg_alt_mode_availability":4.5392105263},
+{"id":"NODE_0003","station_name":"District Court (Civil Court)","node_type":"Metro Station","lat":18.52689,"lng":73.85802,"trips":82,"risk_score":29.2,"actual_switch_rate":19.5,"avg_congestion":0.3052560976,"avg_crowding":0.4666219512,"avg_wait_min":9.3929268293,"avg_alt_mode_availability":5.2490243902},
+{"id":"NODE_0025","station_name":"Shivajinagar Bus Stand","node_type":"Bus Terminal","lat":18.5304,"lng":73.847,"trips":84,"risk_score":27.1,"actual_switch_rate":17.9,"avg_congestion":0.3605952381,"avg_crowding":0.4773214286,"avg_wait_min":10.7839285714,"avg_alt_mode_availability":5.4538095238},
+{"id":"NODE_0014","station_name":"Paud Phata","node_type":"Metro Station","lat":18.5091,"lng":73.82208,"trips":82,"risk_score":25.0,"actual_switch_rate":15.9,"avg_congestion":0.3701219512,"avg_crowding":0.5246097561,"avg_wait_min":10.7395121951,"avg_alt_mode_availability":6.0148780488},
+{"id":"NODE_0083","station_name":"Hadapsar Gadital Bus Stand","node_type":"Bus Terminal","lat":18.5089,"lng":73.926,"trips":76,"risk_score":18.7,"actual_switch_rate":10.5,"avg_congestion":0.2385131579,"avg_crowding":0.4101578947,"avg_wait_min":7.7597368421,"avg_alt_mode_availability":8.0788157895}
+];
+
+/* ============================================================
+   SYNTHETIC METRO MODEL
+   ------------------------------------------------------------
+   Based on published Pune Metro information:
+   - official project profile gives maximum speed 80 km/h
+   - an official CMP gives scheduled speed about 33 km/h
+   - official station lists provide station order
+   - a route source gives examples around 0.97-0.98 km between
+     several Line 2 stations and ~2.26 min between them.
+
+   We use scheduled speed = 33 km/h as the basis and add a
+   small station dwell/operational allowance.
+   ============================================================ */
+
+const METRO_SCHEDULED_SPEED_KMPH = 33;
+
+/* Approximate average station dwell/operational allowance. */
+const METRO_DWELL_MIN = 0.45;
+
+/*
+   Synthetic headway:
+   approximately 7 minutes in peak periods and 12 minutes
+   off peak. For the demo we use 7 minutes.
+*/
+const METRO_HEADWAY_MINUTES = 7;
+
+/*
+   Station sequences from the official Pune Metro route/station
+   information. Only stations represented in YOUR current map
+   are included in the calculation.
+
+   Where a station is missing from your current map, it is kept
+   out of the interactive route so the map remains consistent
+   with your dataset.
+*/
+
+const metroLines = {
+  "Purple Line": [
+    "Nashik Phata",
+    "Dapodi",
+    "Shivaji Nagar",
+    "District Court (Civil Court)",
+    "Mahatma Phule Mandai"
+  ],
+
+  "Aqua Line": [
+    "Paud Phata",
+    "Chhatrapati Sambhaji Udyan",
+    "PMC Bhavan",
+    "District Court (Civil Court)",
+    "Pune Railway Station (Metro)",
+    "Bund Garden",
+    "Ramwadi"
+  ]
+};
+
+/*
+   Approximate straight-line station-to-station distances
+   are calculated from the station coordinates.
+
+   To avoid claiming these are surveyed track distances,
+   we apply a 1.12 alignment factor to straight-line distance.
+*/
+const TRACK_ALIGNMENT_FACTOR = 1.12;
+
+/*
+   Calculate haversine distance between two stations.
+*/
+function haversineKm(a, b) {
+
+  const R = 6371;
+
+  const lat1 = a.lat * Math.PI / 180;
+  const lat2 = b.lat * Math.PI / 180;
+
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+
+  const x =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) *
+    Math.cos(lat2) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
+
+  return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+/*
+   Find a station in the existing dataset.
+*/
+function getStationByName(name) {
+  return nodes.find(n => n.station_name === name);
+}
+
+/*
+   Find a route on one of the metro lines.
+*/
+function findMetroRoute(source, destination) {
+
+  for (const lineName in metroLines) {
+
+    const line = metroLines[lineName];
+
+    const sourceIndex = line.indexOf(source);
+    const destinationIndex = line.indexOf(destination);
+
+    if (sourceIndex !== -1 && destinationIndex !== -1) {
+
+      const start = Math.min(sourceIndex, destinationIndex);
+      const end = Math.max(sourceIndex, destinationIndex);
+
+      return {
+        line: lineName,
+        stations: line.slice(start, end + 1),
+        numberOfSegments: end - start
+      };
+    }
+  }
+
+  return null;
+}
+
+/*
+   Calculate synthetic segment time from distance and scheduled speed.
+
+   time = distance / speed * 60 + dwell allowance
+*/
+function calculateSegmentTime(fromName, toName) {
+
+  const from = getStationByName(fromName);
+  const to = getStationByName(toName);
+
+  if (!from || !to) return null;
+
+  const straightDistance = haversineKm(from, to);
+
+  const estimatedTrackDistance =
+    straightDistance * TRACK_ALIGNMENT_FACTOR;
+
+  const runningMinutes =
+    (estimatedTrackDistance / METRO_SCHEDULED_SPEED_KMPH) * 60;
+
+  return {
+    distanceKm: estimatedTrackDistance,
+    timeMin: runningMinutes + METRO_DWELL_MIN
+  };
+}
+
+/*
+   Calculate total metro travel time.
+*/
+function calculateMetroJourney(source, destination) {
+
+  const route = findMetroRoute(source, destination);
+
+  if (!route) return null;
+
+  let totalDistance = 0;
+  let trainTime = 0;
+  let segments = [];
+
+  for (let i = 0; i < route.stations.length - 1; i++) {
+
+    const from = route.stations[i];
+    const to = route.stations[i + 1];
+
+    const segment = calculateSegmentTime(from, to);
+
+    if (!segment) return null;
+
+    totalDistance += segment.distanceKm;
+    trainTime += segment.timeMin;
+
+    segments.push({
+      from: from,
+      to: to,
+      distanceKm: segment.distanceKm,
+      timeMin: segment.timeMin
+    });
+  }
+
+  /*
+     Expected waiting time for random arrival:
+     approximately half the headway.
+  */
+  const expectedWait = METRO_HEADWAY_MINUTES / 2;
+
+  return {
+    line: route.line,
+    stations: route.stations,
+    segments: segments,
+    distanceKm: totalDistance,
+    trainTimeMin: trainTime,
+    expectedWaitMin: expectedWait,
+    totalTimeMin: trainTime + expectedWait
+  };
+}
+
+/* ============================================================
+   ROAD ROUTING
+   ============================================================ */
+
+async function calculateRoadTime(sourceNode, destinationNode) {
+
+  const url =
+    "https://router.project-osrm.org/route/v1/driving/" +
+    sourceNode.lng + "," + sourceNode.lat +
+    ";" +
+    destinationNode.lng + "," + destinationNode.lat +
+    "?overview=false";
+
+  try {
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.code !== "Ok" || !data.routes.length) {
+      throw new Error("Road route unavailable");
+    }
+
+    const route = data.routes[0];
+
+    return {
+      minutes: Math.max(1, Math.round(route.duration / 60)),
+      distanceKm: route.distance / 1000
+    };
+
+  } catch (error) {
+
+    console.error(error);
+
+    return null;
+  }
+}
+
+/* ============================================================
+   ROUTE DRAWING
+   ============================================================ */
+
+let metroRouteLine = null;
+
+function drawMetroRoute(stationNames) {
+
+  if (metroRouteLine) {
+    map.removeLayer(metroRouteLine);
+  }
+
+  const coordinates = stationNames
+    .map(name => getStationByName(name))
+    .filter(Boolean)
+    .map(station => [station.lat, station.lng]);
+
+  if (coordinates.length >= 2) {
+
+    metroRouteLine = L.polyline(
+      coordinates,
+      {
+        color: "#1976d2",
+        weight: 6,
+        opacity: 0.85,
+        dashArray: "10,6"
+      }
+    ).addTo(map);
+
+    map.fitBounds(
+      metroRouteLine.getBounds(),
+      { padding: [40, 40] }
+    );
+  }
+}
+
+/* ============================================================
+   JOURNEY COMPARISON
+   ============================================================ */
+
+async function showJourneyComparison(sourceName, destinationName, resultId) {
+
+  const source = getStationByName(sourceName);
+  const destination = getStationByName(destinationName);
+
+  const resultBox = document.getElementById(resultId);
+
+  if (!source || !destination) {
+    resultBox.innerHTML =
+      '<div class="warning">Station data not found.</div>';
+    return;
+  }
+
+  const metro = calculateMetroJourney(
+    sourceName,
+    destinationName
+  );
+
+  if (!metro) {
+    resultBox.innerHTML =
+      '<div class="warning">' +
+      'A metro route between these stations is not available in the current map dataset.' +
+      '</div>';
+    return;
+  }
+
+  resultBox.innerHTML =
+    '<div class="comparison">' +
+    'Calculating road travel time...' +
+    '</div>';
+
+  const road = await calculateRoadTime(
+    source,
+    destination
+  );
+
+  drawMetroRoute(metro.stations);
+
+  if (!road) {
+
+    resultBox.innerHTML =
+      '<div class="comparison">' +
+      '<div class="comparison-title">🚇 Metro Journey</div>' +
+      '<div class="popup-row">Train time: <b>' +
+      metro.trainTimeMin.toFixed(1) +
+      ' min</b></div>' +
+      '<div class="popup-row">Expected wait: <b>' +
+      metro.expectedWaitMin.toFixed(1) +
+      ' min</b></div>' +
+      '<div class="popup-row">Total Metro: <b class="metro-time">' +
+      metro.totalTimeMin.toFixed(1) +
+      ' min</b></div>' +
+      '<div class="warning">Road routing could not be obtained. Check your internet connection.</div>' +
+      '</div>';
+
+    return;
+  }
+
+  const difference =
+    road.minutes - metro.totalTimeMin;
+
+  let recommendation;
+
+  if (difference > 0) {
+
+    recommendation =
+      "🚇 Metro is approximately " +
+      difference.toFixed(1) +
+      " min faster.";
+
+  } else if (difference < 0) {
+
+    recommendation =
+      "🚗 Road is approximately " +
+      Math.abs(difference).toFixed(1) +
+      " min faster.";
+
+  } else {
+
+    recommendation =
+      "Both options take approximately the same time.";
+  }
+
+  const segmentText =
+    metro.segments.map(s =>
+      s.from + " → " +
+      s.to + " (" +
+      s.distanceKm.toFixed(2) +
+      " km, " +
+      s.timeMin.toFixed(1) +
+      " min)"
+    ).join("<br>");
+
+  resultBox.innerHTML =
+    '<div class="comparison">' +
+
+    '<div class="comparison-title">' +
+    'Journey Comparison' +
+    '</div>' +
+
+    '<div class="popup-row">' +
+    '🚇 Metro line: <b>' +
+    metro.line +
+    '</b></div>' +
+
+    '<div class="popup-row">' +
+    '📏 Estimated metro distance: <b>' +
+    metro.distanceKm.toFixed(2) +
+    ' km</b>' +
+    '</div>' +
+
+    '<div class="popup-row">' +
+    '🚇 Train travel: <b class="metro-time">' +
+    metro.trainTimeMin.toFixed(1) +
+    ' min</b>' +
+    '</div>' +
+
+    '<div class="popup-row">' +
+    '⏳ Expected wait: <b>' +
+    metro.expectedWaitMin.toFixed(1) +
+    ' min</b>' +
+    '</div>' +
+
+    '<div class="popup-row">' +
+    '🚇 Total Metro: <b class="metro-time">' +
+    metro.totalTimeMin.toFixed(1) +
+    ' min</b>' +
+    '</div>' +
+
+    '<hr>' +
+
+    '<div class="popup-row">' +
+    '🚗 Road: <b class="road-time">' +
+    road.minutes +
+    ' min</b>' +
+    '</div>' +
+
+    '<div class="route-info">' +
+    'Road distance: ' +
+    road.distanceKm.toFixed(1) +
+    ' km' +
+    '</div>' +
+
+    '<div class="saving">' +
+    recommendation +
+    '</div>' +
+
+    '<div class="route-info">' +
+    '<b>Metro route:</b><br>' +
+    metro.stations.join(" → ") +
+    '</div>' +
+
+    '<div class="route-info">' +
+    '<b>Estimated segment times:</b><br>' +
+    segmentText +
+    '</div>' +
+
+    '<div class="warning">' +
+    'Metro times are synthetic estimates based on a published scheduled speed of about 33 km/h, station coordinates and an alignment factor. They are suitable for this prototype, but should be replaced with official timetable/operational data for production use.' +
+    '</div>' +
+
+    '</div>';
+}
+
+/* ============================================================
+   POPUP
+   ============================================================ */
+
+function createMetroPopup(n) {
+
+  const metroStations =
+    nodes.filter(node =>
+      node.node_type === "Metro Station" &&
+      node.station_name !== n.station_name
+    );
+
+  let options =
+    '<option value="">Select destination</option>';
+
+  metroStations.forEach(station => {
+
+    options +=
+      '<option value="' +
+      station.station_name +
+      '">' +
+      station.station_name +
+      '</option>';
+  });
+
+  return (
+    '<div class="metro-popup">' +
+
+    '<h3>🚇 ' +
+    n.station_name +
+    '</h3>' +
+
+    '<div class="station-type">' +
+    n.node_type +
+    '</div>' +
+
+    '<div class="popup-row">' +
+    'Switch risk: <b>' +
+    n.risk_score.toFixed(1) +
+    '%</b>' +
+    '</div>' +
+
+    '<div class="popup-row">' +
+    'Trips observed: ' +
+    n.trips +
+    '</div>' +
+
+    '<hr>' +
+
+    '<div class="popup-row">' +
+    '<b>Where do you want to go?</b>' +
+    '</div>' +
+
+    '<select id="destination-' + n.id + '"' +
+    ' class="destination-select">' +
+    options +
+    '</select>' +
+
+    '<button class="plan-button"' +
+    ' onclick="planJourney(\'' +
+    n.station_name.replace(/'/g, "\\'") +
+    '\', \'' +
+    n.id +
+    '\')">' +
+    'Compare Metro vs Road' +
+    '</button>' +
+
+    '<div id="journey-result-' +
+    n.id +
+    '"></div>' +
+
+    '</div>'
+  );
+}
+
+async function planJourney(sourceName, nodeId) {
+
+  const select =
+    document.getElementById(
+      "destination-" + nodeId
+    );
+
+  const destination = select.value;
+
+  if (!destination) {
+    alert("Please select a destination station.");
+    return;
+  }
+
+  const resultId =
+    "journey-result-" + nodeId;
+
+  await showJourneyComparison(
+    sourceName,
+    destination,
+    resultId
+  );
+}
+
+/* ============================================================
+   MARKERS
+   ============================================================ */
+
+function riskColor(r) {
+
+  if (r > 50) return '#D85A30';
+  if (r > 30) return '#EF9F27';
+
+  return '#1D9E75';
+}
+
+function shapeDiv(type, color) {
+
+  if (type === 'Metro Station') {
+
+    return '<div style="' +
+      'width:18px;height:18px;border-radius:50%;' +
+      'background:' + color + ';border:2px solid #fff;' +
+      'box-shadow:0 0 0 1px rgba(0,0,0,0.15);' +
+      '"></div>';
+  }
+
+  if (type === 'Railway Station') {
+
+    return '<div style="' +
+      'width:16px;height:16px;background:' + color + ';' +
+      'border:2px solid #fff;border-radius:3px;' +
+      'box-shadow:0 0 0 1px rgba(0,0,0,0.15);' +
+      '"></div>';
+  }
+
+  if (type === 'Bus Terminal') {
+
+    return '<div style="' +
+      'width:14px;height:14px;background:' + color + ';' +
+      'border:2px solid #fff;border-radius:3px;' +
+      'transform:rotate(45deg);' +
+      'box-shadow:0 0 0 1px rgba(0,0,0,0.15);' +
+      '"></div>';
+  }
+
+  return '<div style="' +
+    'width:0;height:0;' +
+    'border-left:8px solid transparent;' +
+    'border-right:8px solid transparent;' +
+    'border-bottom:15px solid ' + color + ';' +
+    'filter:drop-shadow(0 0 1px rgba(0,0,0,0.15));' +
+    '"></div>';
+}
+
+/* ============================================================
+   MAP
+   ============================================================ */
+
+const map =
+  L.map('map')
+   .setView([18.535, 73.865], 12);
+
+L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18
+  }
+).addTo(map);
+
+nodes.forEach(function(n) {
+
+  const c = riskColor(n.risk_score);
+
+  const icon = L.divIcon({
+    html: shapeDiv(n.node_type, c),
+    className: '',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  const marker =
+    L.marker(
+      [n.lat, n.lng],
+      { icon: icon }
+    ).addTo(map);
+
+  if (n.node_type === "Metro Station") {
+
+    marker.bindPopup(
+      createMetroPopup(n)
+    );
+
+  } else {
+
+    marker.bindPopup(
+      '<div style="min-width:170px">' +
+
+      '<div style="font-weight:600;font-size:13px;margin-bottom:2px">' +
+      n.station_name +
+      '</div>' +
+
+      '<div style="font-size:12px;color:#666;margin-bottom:6px">' +
+      n.node_type +
+      '</div>' +
+
+      '<div style="font-size:12px">' +
+      'Switch risk: <b style="color:' +
+      c + '">' +
+      n.risk_score.toFixed(1) +
+      '%</b>' +
+      '</div>' +
+
+      '<div style="font-size:12px">' +
+      'Trips observed: ' +
+      n.trips +
+      '</div>' +
+
+      '</div>'
+    );
+  }
+});
+
+</script>
+</body>
+</html>
